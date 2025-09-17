@@ -1,25 +1,7 @@
 {
-  "version": 2,
   "name": "professional-dashboard",
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
-    }
-  ],
   "env": {
     "GOOGLE_SHEETS_API_KEY": "AIzaSyACruF4Qmzod8c0UlwfsBZlujoKguKsFDM"
-  },
-  "functions": {
-    "pages/api/**/*.js": {
-      "maxDuration": 30
-    }
   },
   "headers": [
     {
