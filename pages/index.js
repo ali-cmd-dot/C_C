@@ -312,16 +312,15 @@ export default function Dashboard() {
     return (
       <div className={`min-h-screen transition-all duration-300 ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-indigo-100 via-white to-purple-100'} flex items-center justify-center`}>
         <div className="text-center">
-          <div className="relative">
-            <div className="w-24 h-24 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-6"></div>
-            <div className="absolute inset-0 w-24 h-24 border-4 border-transparent border-r-purple-400 rounded-full animate-spin animation-delay-150 mx-auto"></div>
+          <div className="relative w-24 h-24 mx-auto mb-6">
+            <div className="w-24 h-24 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
           </div>
           <h2 className={`text-3xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Loading Dashboard</h2>
           <p className={`text-lg ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Fetching live data...</p>
-          <div className="flex justify-center mt-4 space-x-1">
+          <div className="flex justify-center mt-4 space-x-2">
             <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce"></div>
-            <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce animation-delay-200"></div>
-            <div className="w-2 h-2 bg-pink-600 rounded-full animate-bounce animation-delay-400"></div>
+            <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{animationDelay: '200ms'}}></div>
+            <div className="w-2 h-2 bg-pink-600 rounded-full animate-bounce" style={{animationDelay: '400ms'}}></div>
           </div>
         </div>
       </div>
@@ -745,14 +744,14 @@ export default function Dashboard() {
                           </div>
                           <div className="flex items-center justify-between p-4 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-2xl">
                             <div className="flex items-center space-x-3">
-                              <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse animation-delay-200"></div>
+                              <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
                               <span className="font-medium">Average Response</span>
                             </div>
                             <span className="text-2xl font-bold text-yellow-600">{stats.median}</span>
                           </div>
                           <div className="flex items-center justify-between p-4 bg-gradient-to-r from-red-500/10 to-pink-500/10 rounded-2xl">
                             <div className="flex items-center space-x-3">
-                              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse animation-delay-400"></div>
+                              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
                               <span className="font-medium">Slowest Response</span>
                             </div>
                             <span className="text-2xl font-bold text-red-600">{stats.slowest}</span>
@@ -789,14 +788,14 @@ export default function Dashboard() {
                           </div>
                           <div className="flex items-center justify-between p-4 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-2xl">
                             <div className="flex items-center space-x-3">
-                              <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse animation-delay-200"></div>
+                              <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
                               <span className="font-medium">Average Resolution</span>
                             </div>
                             <span className="text-2xl font-bold text-yellow-600">{stats.median}</span>
                           </div>
                           <div className="flex items-center justify-between p-4 bg-gradient-to-r from-red-500/10 to-pink-500/10 rounded-2xl">
                             <div className="flex items-center space-x-3">
-                              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse animation-delay-400"></div>
+                              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
                               <span className="font-medium">Slowest Resolution</span>
                             </div>
                             <span className="text-2xl font-bold text-red-600">{stats.slowest}</span>
@@ -984,29 +983,6 @@ export default function Dashboard() {
         </main>
       </div>
 
-      <style jsx>{`
-        .animation-delay-150 {
-          animation-delay: 150ms;
-        }
-        .animation-delay-200 {
-          animation-delay: 200ms;
-        }
-        .animation-delay-400 {
-          animation-delay: 400ms;
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in {
-          animation: fadeIn 0.6s ease-out;
-        }
-        @media (max-width: 768px) {
-          .grid-cols-1 {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
     </>
   );
 }
