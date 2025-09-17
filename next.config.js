@@ -2,9 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  experimental: {
-    optimizeCss: true,
-  },
   env: {
     GOOGLE_SHEETS_API_KEY: 'AIzaSyACruF4Qmzod8c0UlwfsBZlujoKguKsFDM',
   },
@@ -30,6 +27,7 @@ const nextConfig = {
     ];
   },
   poweredByHeader: false,
+  output: 'standalone',
 }
 
 module.exports = nextConfig
