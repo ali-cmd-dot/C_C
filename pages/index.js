@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  LineChart, Line, PieChart, Pie, Cell, Area, AreaChart
+  LineChart, Line, PieChart, Pie, Cell, Area, AreaChart, RadialBarChart, RadialBar
 } from 'recharts';
 
 const GOOGLE_SHEETS_API_KEY = 'AIzaSyACruF4Qmzod8c0UlwfsBZlujoKguKsFDM';
@@ -24,7 +24,7 @@ const SHEETS_CONFIG = {
   }
 };
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+const MODERN_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'];
 
 export default function Dashboard() {
   const [data, setData] = useState({
@@ -35,11 +35,11 @@ export default function Dashboard() {
     error: null
   });
   
-  const [activeTab, setActiveTab] = useState('monthly');
+  const [activeTab, setActiveTab] = useState('overview');
+  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
     fetchAllData();
-    // Set up auto-refresh every 5 minutes
     const interval = setInterval(fetchAllData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
@@ -68,7 +68,7 @@ export default function Dashboard() {
       setData(prev => ({ 
         ...prev, 
         loading: false, 
-        error: 'Failed to fetch data. Please check your internet connection.' 
+        error: 'Failed to fetch data. Please check your connection.' 
       }));
     }
   };
@@ -88,11 +88,10 @@ export default function Dashboard() {
   const parseDate = (dateStr) => {
     if (!dateStr) return null;
     
-    // Handle various date formats: DD/MM/YY, DD/MM/YYYY, DD-MM-YY, etc.
     const cleanDate = dateStr.toString().trim();
     const patterns = [
-      /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/, // DD/MM/YYYY
-      /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/, // DD/MM/YY
+      /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/,
+      /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/,
     ];
     
     for (const pattern of patterns) {
@@ -104,7 +103,6 @@ export default function Dashboard() {
       }
     }
     
-    // Try parsing as timestamp for issues data
     if (cleanDate.includes(' ')) {
       const [datePart] = cleanDate.split(' ');
       return parseDate(datePart);
@@ -124,9 +122,8 @@ export default function Dashboard() {
     const monthly = {};
     const daily = {};
     const clientStats = {};
-    const vehicleTracking = new Map(); // Track vehicles by date
+    const vehicleTracking = new Map();
     
-    // Process each row
     for (let i = 1; i < rawData.length; i++) {
       const row = rawData[i];
       const dateStr = row[dateIndex];
@@ -139,28 +136,22 @@ export default function Dashboard() {
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const dayKey = date.toISOString().split('T')[0];
       
-      // Parse vehicles (comma-separated)
       const vehicles = vehiclesStr.split(',').map(v => v.trim()).filter(v => v);
       
-      // Monthly stats
       if (!monthly[monthKey]) monthly[monthKey] = { raised: 0, resolved: 0 };
       monthly[monthKey].raised += vehicles.length;
       
-      // Daily stats
       if (!daily[dayKey]) daily[dayKey] = { raised: 0, resolved: 0 };
       daily[dayKey].raised += vehicles.length;
       
-      // Client stats
       if (!clientStats[client]) clientStats[client] = {};
       if (!clientStats[client][monthKey]) clientStats[client][monthKey] = { count: 0, vehicles: new Set() };
       clientStats[client][monthKey].count += vehicles.length;
       vehicles.forEach(v => clientStats[client][monthKey].vehicles.add(v));
       
-      // Track vehicles for resolution detection
       vehicleTracking.set(dayKey, vehicles);
     }
     
-    // Calculate resolutions (if vehicle disappears next day, it's resolved)
     const sortedDays = Array.from(vehicleTracking.keys()).sort();
     for (let i = 0; i < sortedDays.length - 1; i++) {
       const currentDay = sortedDays[i];
@@ -197,7 +188,6 @@ export default function Dashboard() {
       const alertType = row[alertTypeIndex] || '';
       const client = row[clientIndex] || 'Unknown';
       
-      // Skip 'No L2 alerts found'
       if (alertType.toLowerCase().includes('no l2 alerts found')) continue;
       
       const date = parseDate(dateStr);
@@ -205,11 +195,9 @@ export default function Dashboard() {
       
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       
-      // Monthly stats
       if (!monthly[monthKey]) monthly[monthKey] = 0;
       monthly[monthKey]++;
       
-      // Client stats
       if (!clientStats[client]) clientStats[client] = {};
       if (!clientStats[client][monthKey]) clientStats[client][monthKey] = 0;
       clientStats[client][monthKey]++;
@@ -220,8 +208,8 @@ export default function Dashboard() {
 
   const processIssuesData = (rawData) => {
     if (!rawData || rawData.length < 2) return { 
-      historicalVideos: { monthly: {}, clientStats: {}, responseTimeStats: {} },
-      allIssues: { monthly: {}, clientStats: {}, responseTimeStats: {} }
+      historicalVideos: { monthly: {}, clientStats: {}, responseTimeStats: [] },
+      allIssues: { monthly: {}, clientStats: {}, responseTimeStats: [] }
     };
     
     const headers = rawData[0];
@@ -245,7 +233,6 @@ export default function Dashboard() {
       
       const monthKey = `${raisedDate.getFullYear()}-${String(raisedDate.getMonth() + 1).padStart(2, '0')}`;
       
-      // Process all issues
       if (!allIssues.monthly[monthKey]) allIssues.monthly[monthKey] = { raised: 0, resolved: 0 };
       allIssues.monthly[monthKey].raised++;
       
@@ -253,20 +240,17 @@ export default function Dashboard() {
       if (!allIssues.clientStats[client][monthKey]) allIssues.clientStats[client][monthKey] = { raised: 0, resolved: 0 };
       allIssues.clientStats[client][monthKey].raised++;
       
-      // Check if resolved
       const resolvedDate = parseDate(resolvedStr);
       if (resolvedDate) {
         allIssues.monthly[monthKey].resolved++;
         allIssues.clientStats[client][monthKey].resolved++;
         
-        // Calculate response time
         const responseTime = resolvedDate - raisedDate;
         if (responseTime > 0) {
           allIssues.responseTimeStats.push(responseTime);
         }
       }
       
-      // Process historical video requests specifically
       if (issue.toLowerCase().includes('historical video request')) {
         if (!historicalVideos.monthly[monthKey]) historicalVideos.monthly[monthKey] = { raised: 0, resolved: 0 };
         historicalVideos.monthly[monthKey].raised++;
@@ -296,9 +280,9 @@ export default function Dashboard() {
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
     
-    if (days > 0) return `${days}d ${hours % 24}h ${minutes % 60}m`;
+    if (days > 0) return `${days}d ${hours % 24}h`;
     if (hours > 0) return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+    if (minutes > 0) return `${minutes}m`;
     return `${seconds}s`;
   };
 
@@ -319,18 +303,26 @@ export default function Dashboard() {
     return Object.entries(monthlyData)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, data]) => ({
-        month: month,
+        month: month.split('-')[1] + '/' + month.split('-')[0].slice(2),
         ...data
       }));
   };
 
   if (data.loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className={`min-h-screen transition-all duration-300 ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-indigo-100 via-white to-purple-100'} flex items-center justify-center`}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <h2 className="text-2xl font-semibold text-gray-700">Loading Dashboard...</h2>
-          <p className="text-gray-500 mt-2">Fetching live data from Google Sheets</p>
+          <div className="relative">
+            <div className="w-24 h-24 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-6"></div>
+            <div className="absolute inset-0 w-24 h-24 border-4 border-transparent border-r-purple-400 rounded-full animate-spin animation-delay-150 mx-auto"></div>
+          </div>
+          <h2 className={`text-3xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Loading Dashboard</h2>
+          <p className={`text-lg ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Fetching live data...</p>
+          <div className="flex justify-center mt-4 space-x-1">
+            <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce"></div>
+            <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce animation-delay-200"></div>
+            <div className="w-2 h-2 bg-pink-600 rounded-full animate-bounce animation-delay-400"></div>
+          </div>
         </div>
       </div>
     );
@@ -338,335 +330,683 @@ export default function Dashboard() {
 
   if (data.error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            <strong className="font-bold">Error: </strong>
-            <span className="block sm:inline">{data.error}</span>
+      <div className={`min-h-screen transition-all duration-300 ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-red-100 via-white to-pink-100'} flex items-center justify-center`}>
+        <div className="text-center max-w-md">
+          <div className="bg-red-100 border-2 border-red-200 rounded-2xl p-8 shadow-2xl">
+            <div className="text-6xl mb-4">🚨</div>
+            <h2 className="text-2xl font-bold text-red-800 mb-4">Connection Error</h2>
+            <p className="text-red-600 mb-6">{data.error}</p>
+            <button 
+              onClick={fetchAllData}
+              className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all duration-200 hover:scale-105"
+            >
+              🔄 Try Again
+            </button>
           </div>
-          <button 
-            onClick={fetchAllData}
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-          >
-            Retry
-          </button>
         </div>
       </div>
     );
   }
 
-  const renderMonthlyAnalysis = () => (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold mb-2">Monthly Analysis Dashboard</h1>
-        <p className="text-blue-100">Real-time data from Google Sheets - Last updated: {new Date().toLocaleString()}</p>
-      </div>
-
-      {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-red-500">
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Misalignments</h3>
-          <p className="text-3xl font-bold text-red-500">
-            {Object.values(data.misalignment?.monthly || {}).reduce((sum, month) => sum + month.raised, 0)}
-          </p>
-          <p className="text-sm text-gray-500">Total This Period</p>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-yellow-500">
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Alerts</h3>
-          <p className="text-3xl font-bold text-yellow-500">
-            {Object.values(data.alerts?.monthly || {}).reduce((sum, count) => sum + count, 0)}
-          </p>
-          <p className="text-sm text-gray-500">Total This Period</p>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Historical Videos</h3>
-          <p className="text-3xl font-bold text-blue-500">
-            {Object.values(data.issues?.historicalVideos?.monthly || {}).reduce((sum, month) => sum + month.raised, 0)}
-          </p>
-          <p className="text-sm text-gray-500">Total Requests</p>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">All Issues</h3>
-          <p className="text-3xl font-bold text-green-500">
-            {Object.values(data.issues?.allIssues?.monthly || {}).reduce((sum, month) => sum + month.raised, 0)}
-          </p>
-          <p className="text-sm text-gray-500">Total Raised</p>
-        </div>
-      </div>
-
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Misalignments Chart */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-semibold mb-4 text-gray-800">Monthly Misalignments</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={prepareChartData(data.misalignment?.monthly || {})}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="raised" fill="#ef4444" name="Raised" />
-              <Bar dataKey="resolved" fill="#10b981" name="Resolved" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Alerts Chart */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-semibold mb-4 text-gray-800">Monthly Alerts</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={prepareChartData(data.alerts?.monthly || {}).map(item => ({ month: item.month, alerts: item }))}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Area type="monotone" dataKey="alerts" stroke="#f59e0b" fill="#fbbf24" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Historical Videos Chart */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-semibold mb-4 text-gray-800">Historical Video Requests</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={prepareChartData(data.issues?.historicalVideos?.monthly || {})}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="raised" stroke="#3b82f6" name="Requested" strokeWidth={3} />
-              <Line type="monotone" dataKey="resolved" stroke="#10b981" name="Delivered" strokeWidth={3} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* All Issues Chart */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-semibold mb-4 text-gray-800">All Issues Monthly</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={prepareChartData(data.issues?.allIssues?.monthly || {})}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="raised" fill="#8b5cf6" name="Raised" />
-              <Bar dataKey="resolved" fill="#06d6a0" name="Resolved" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Response Time Statistics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-semibold mb-4 text-gray-800">Historical Video Response Times</h3>
-          <div className="space-y-3">
-            {(() => {
-              const stats = getResponseTimeStats(data.issues?.historicalVideos?.responseTimeStats);
-              return (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-green-600 font-medium">Fastest:</span>
-                    <span className="font-bold">{stats.fastest}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-yellow-600 font-medium">Median:</span>
-                    <span className="font-bold">{stats.median}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-red-600 font-medium">Slowest:</span>
-                    <span className="font-bold">{stats.slowest}</span>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-semibold mb-4 text-gray-800">All Issues Response Times</h3>
-          <div className="space-y-3">
-            {(() => {
-              const stats = getResponseTimeStats(data.issues?.allIssues?.responseTimeStats);
-              return (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-green-600 font-medium">Fastest:</span>
-                    <span className="font-bold">{stats.fastest}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-yellow-600 font-medium">Median:</span>
-                    <span className="font-bold">{stats.median}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-red-600 font-medium">Slowest:</span>
-                    <span className="font-bold">{stats.slowest}</span>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderDetailedBreakdowns = () => (
-    <div className="space-y-8">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Detailed Client Breakdowns</h2>
-      
-      {/* Client-wise Misalignments */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h3 className="text-xl font-semibold mb-4 text-gray-800">Client-wise Misalignments</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Count</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unique Vehicles</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {Object.entries(data.misalignment?.clientStats || {}).map(([client, months]) =>
-                Object.entries(months).map(([month, stats]) => (
-                  <tr key={`${client}-${month}`}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{client}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{month}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.count}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.vehicles?.size || 0}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Client-wise Alerts */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h3 className="text-xl font-semibold mb-4 text-gray-800">Client-wise Alerts</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Alert Count</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {Object.entries(data.alerts?.clientStats || {}).map(([client, months]) =>
-                Object.entries(months).map(([month, count]) => (
-                  <tr key={`${client}-${month}`}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{client}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{month}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{count}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Client-wise Issues */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h3 className="text-xl font-semibold mb-4 text-gray-800">Client-wise Issues</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issues Raised</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issues Resolved</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Video Requests</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {Object.entries(data.issues?.allIssues?.clientStats || {}).map(([client, months]) =>
-                Object.entries(months).map(([month, stats]) => (
-                  <tr key={`${client}-${month}`}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{client}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{month}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.raised}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.resolved}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {data.issues?.historicalVideos?.clientStats?.[client]?.[month]?.raised || 0}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+  const totalMisalignments = Object.values(data.misalignment?.monthly || {}).reduce((sum, month) => sum + month.raised, 0);
+  const totalAlerts = Object.values(data.alerts?.monthly || {}).reduce((sum, count) => sum + count, 0);
+  const totalVideos = Object.values(data.issues?.historicalVideos?.monthly || {}).reduce((sum, month) => sum + month.raised, 0);
+  const totalIssues = Object.values(data.issues?.allIssues?.monthly || {}).reduce((sum, month) => sum + month.raised, 0);
 
   return (
     <>
       <Head>
-        <title>Professional Dashboard - Live Analytics</title>
-        <meta name="description" content="Real-time analytics dashboard with Google Sheets integration" />
+        <title>Modern Analytics Dashboard - Live Data</title>
+        <meta name="description" content="Stunning real-time analytics dashboard" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
       </Head>
 
-      <div className="min-h-screen bg-gray-50">
-        {/* Navigation */}
-        <nav className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
-              <div className="flex space-x-8">
-                <button
-                  onClick={() => setActiveTab('monthly')}
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    activeTab === 'monthly'
-                      ? 'border-blue-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Monthly Analysis
-                </button>
-                <button
-                  onClick={() => setActiveTab('detailed')}
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    activeTab === 'detailed'
-                      ? 'border-blue-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Detailed Breakdowns
-                </button>
+      <div className={`min-h-screen transition-all duration-500 font-['Inter'] ${
+        darkMode 
+          ? 'bg-gray-900 text-white' 
+          : 'bg-gradient-to-br from-indigo-50 via-white to-purple-50'
+      }`}>
+        
+        {/* Modern Header */}
+        <header className={`sticky top-0 z-50 backdrop-blur-md transition-all duration-300 ${
+          darkMode 
+            ? 'bg-gray-900/80 border-gray-700' 
+            : 'bg-white/80 border-white/20'
+        } border-b shadow-lg`}>
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              
+              {/* Logo & Title */}
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <span className="text-white font-bold text-xl">📊</span>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                    Analytics Hub
+                  </h1>
+                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Real-time insights • {new Date().toLocaleString()}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center">
+
+              {/* Navigation & Controls */}
+              <div className="flex items-center space-x-4">
+                <div className={`flex items-center space-x-1 p-1 rounded-2xl transition-all duration-300 ${
+                  darkMode ? 'bg-gray-800' : 'bg-gray-100'
+                }`}>
+                  {['overview', 'analytics', 'clients'].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                        activeTab === tab
+                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
+                          : darkMode
+                            ? 'text-gray-400 hover:text-white hover:bg-gray-700'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                      }`}
+                    >
+                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  className={`p-3 rounded-2xl transition-all duration-300 ${
+                    darkMode 
+                      ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' 
+                      : 'bg-gray-800/20 text-gray-700 hover:bg-gray-800/30'
+                  }`}
+                >
+                  {darkMode ? '☀️' : '🌙'}
+                </button>
+
                 <button
                   onClick={fetchAllData}
-                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm"
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-2 px-4 rounded-2xl shadow-lg transform transition-all duration-200 hover:scale-105"
                 >
-                  Refresh Data
+                  🔄 Refresh
                 </button>
               </div>
             </div>
           </div>
-        </nav>
+        </header>
 
         {/* Main Content */}
-        <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          {activeTab === 'monthly' && renderMonthlyAnalysis()}
-          {activeTab === 'detailed' && renderDetailedBreakdowns()}
+        <main className="max-w-7xl mx-auto px-6 py-8">
+          
+          {activeTab === 'overview' && (
+            <div className="space-y-8">
+              
+              {/* Hero Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                
+                {/* Misalignments Card */}
+                <div className={`group relative overflow-hidden rounded-3xl p-6 transition-all duration-500 hover:scale-105 ${
+                  darkMode 
+                    ? 'bg-gradient-to-br from-red-900/20 to-pink-900/20 border border-red-500/20' 
+                    : 'bg-gradient-to-br from-red-50 to-pink-50 border border-red-200/50'
+                } shadow-xl hover:shadow-2xl`}>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-red-500/10 to-pink-500/10 rounded-full -mr-16 -mt-16"></div>
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-3 bg-gradient-to-r from-red-500 to-pink-600 rounded-2xl">
+                        <span className="text-white text-2xl">⚠️</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium text-red-600 mb-1">Total</div>
+                        <div className="text-3xl font-bold text-red-700">{totalMisalignments}</div>
+                      </div>
+                    </div>
+                    <h3 className="font-semibold text-lg mb-2">Misalignments</h3>
+                    <div className="w-full bg-red-200/50 rounded-full h-2 mb-2">
+                      <div className="bg-gradient-to-r from-red-500 to-pink-600 h-2 rounded-full" style={{width: '75%'}}></div>
+                    </div>
+                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Vehicle alignment issues tracked</p>
+                  </div>
+                </div>
+
+                {/* Alerts Card */}
+                <div className={`group relative overflow-hidden rounded-3xl p-6 transition-all duration-500 hover:scale-105 ${
+                  darkMode 
+                    ? 'bg-gradient-to-br from-yellow-900/20 to-orange-900/20 border border-yellow-500/20' 
+                    : 'bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200/50'
+                } shadow-xl hover:shadow-2xl`}>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-yellow-500/10 to-orange-500/10 rounded-full -mr-16 -mt-16"></div>
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-3 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-2xl">
+                        <span className="text-white text-2xl">🚨</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium text-yellow-600 mb-1">Total</div>
+                        <div className="text-3xl font-bold text-yellow-700">{totalAlerts}</div>
+                      </div>
+                    </div>
+                    <h3 className="font-semibold text-lg mb-2">System Alerts</h3>
+                    <div className="w-full bg-yellow-200/50 rounded-full h-2 mb-2">
+                      <div className="bg-gradient-to-r from-yellow-500 to-orange-600 h-2 rounded-full" style={{width: '60%'}}></div>
+                    </div>
+                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>System alerts generated</p>
+                  </div>
+                </div>
+
+                {/* Historical Videos Card */}
+                <div className={`group relative overflow-hidden rounded-3xl p-6 transition-all duration-500 hover:scale-105 ${
+                  darkMode 
+                    ? 'bg-gradient-to-br from-blue-900/20 to-indigo-900/20 border border-blue-500/20' 
+                    : 'bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200/50'
+                } shadow-xl hover:shadow-2xl`}>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-full -mr-16 -mt-16"></div>
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl">
+                        <span className="text-white text-2xl">🎥</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium text-blue-600 mb-1">Total</div>
+                        <div className="text-3xl font-bold text-blue-700">{totalVideos}</div>
+                      </div>
+                    </div>
+                    <h3 className="font-semibold text-lg mb-2">Video Requests</h3>
+                    <div className="w-full bg-blue-200/50 rounded-full h-2 mb-2">
+                      <div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full" style={{width: '85%'}}></div>
+                    </div>
+                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Historical video requests</p>
+                  </div>
+                </div>
+
+                {/* All Issues Card */}
+                <div className={`group relative overflow-hidden rounded-3xl p-6 transition-all duration-500 hover:scale-105 ${
+                  darkMode 
+                    ? 'bg-gradient-to-br from-green-900/20 to-emerald-900/20 border border-green-500/20' 
+                    : 'bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200/50'
+                } shadow-xl hover:shadow-2xl`}>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-full -mr-16 -mt-16"></div>
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-3 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl">
+                        <span className="text-white text-2xl">🛠️</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium text-green-600 mb-1">Total</div>
+                        <div className="text-3xl font-bold text-green-700">{totalIssues}</div>
+                      </div>
+                    </div>
+                    <h3 className="font-semibold text-lg mb-2">Issues Raised</h3>
+                    <div className="w-full bg-green-200/50 rounded-full h-2 mb-2">
+                      <div className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full" style={{width: '70%'}}></div>
+                    </div>
+                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Support issues tracked</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modern Charts Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                {/* Misalignments Trend */}
+                <div className={`rounded-3xl p-8 transition-all duration-300 shadow-xl hover:shadow-2xl ${
+                  darkMode ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-white/70 border border-white/50'
+                } backdrop-blur-md`}>
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">Misalignment Trends</h3>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Monthly raised vs resolved</p>
+                    </div>
+                    <div className="p-3 bg-gradient-to-r from-red-500 to-pink-600 rounded-2xl">
+                      <span className="text-white text-xl">📊</span>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <BarChart data={prepareChartData(data.misalignment?.monthly || {})}>
+                      <defs>
+                        <linearGradient id="raisedGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#ef4444" stopOpacity={0.8}/>
+                          <stop offset="100%" stopColor="#dc2626" stopOpacity={0.6}/>
+                        </linearGradient>
+                        <linearGradient id="resolvedGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.8}/>
+                          <stop offset="100%" stopColor="#059669" stopOpacity={0.6}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#374151" : "#e5e7eb"} />
+                      <XAxis dataKey="month" stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                      <YAxis stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: darkMode ? '#1f2937' : 'white',
+                          border: 'none',
+                          borderRadius: '12px',
+                          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="raised" fill="url(#raisedGrad)" name="Raised" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="resolved" fill="url(#resolvedGrad)" name="Resolved" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Alerts Line Chart */}
+                <div className={`rounded-3xl p-8 transition-all duration-300 shadow-xl hover:shadow-2xl ${
+                  darkMode ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-white/70 border border-white/50'
+                } backdrop-blur-md`}>
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">System Alerts</h3>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Monthly alert patterns</p>
+                    </div>
+                    <div className="p-3 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-2xl">
+                      <span className="text-white text-xl">⚡</span>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <AreaChart data={prepareChartData(data.alerts?.monthly || {}).map(item => ({ month: item.month, count: item }))}>
+                      <defs>
+                        <linearGradient id="alertGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.6}/>
+                          <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.1}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#374151" : "#e5e7eb"} />
+                      <XAxis dataKey="month" stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                      <YAxis stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: darkMode ? '#1f2937' : 'white',
+                          border: 'none',
+                          borderRadius: '12px',
+                          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                        }}
+                      />
+                      <Area type="monotone" dataKey="count" stroke="#f59e0b" strokeWidth={3} fill="url(#alertGrad)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Video Requests */}
+                <div className={`rounded-3xl p-8 transition-all duration-300 shadow-xl hover:shadow-2xl ${
+                  darkMode ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-white/70 border border-white/50'
+                } backdrop-blur-md`}>
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">Video Requests</h3>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Request vs delivery rate</p>
+                    </div>
+                    <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl">
+                      <span className="text-white text-xl">🎬</span>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart data={prepareChartData(data.issues?.historicalVideos?.monthly || {})}>
+                      <defs>
+                        <linearGradient id="requestGrad" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#3b82f6" />
+                          <stop offset="100%" stopColor="#6366f1" />
+                        </linearGradient>
+                        <linearGradient id="deliveredGrad" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#10b981" />
+                          <stop offset="100%" stopColor="#06d6a0" />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#374151" : "#e5e7eb"} />
+                      <XAxis dataKey="month" stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                      <YAxis stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: darkMode ? '#1f2937' : 'white',
+                          border: 'none',
+                          borderRadius: '12px',
+                          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                        }}
+                      />
+                      <Legend />
+                      <Line type="monotone" dataKey="raised" stroke="url(#requestGrad)" strokeWidth={4} name="Requested" dot={{r: 6}} />
+                      <Line type="monotone" dataKey="resolved" stroke="url(#deliveredGrad)" strokeWidth={4} name="Delivered" dot={{r: 6}} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* All Issues */}
+                <div className={`rounded-3xl p-8 transition-all duration-300 shadow-xl hover:shadow-2xl ${
+                  darkMode ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-white/70 border border-white/50'
+                } backdrop-blur-md`}>
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">Issue Management</h3>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total issues vs resolved</p>
+                    </div>
+                    <div className="p-3 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl">
+                      <span className="text-white text-xl">🔧</span>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <BarChart data={prepareChartData(data.issues?.allIssues?.monthly || {})}>
+                      <defs>
+                        <linearGradient id="issueRaisedGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                          <stop offset="100%" stopColor="#7c3aed" stopOpacity={0.6}/>
+                        </linearGradient>
+                        <linearGradient id="issueResolvedGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#06d6a0" stopOpacity={0.8}/>
+                          <stop offset="100%" stopColor="#04d9c4" stopOpacity={0.6}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#374151" : "#e5e7eb"} />
+                      <XAxis dataKey="month" stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                      <YAxis stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: darkMode ? '#1f2937' : 'white',
+                          border: 'none',
+                          borderRadius: '12px',
+                          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="raised" fill="url(#issueRaisedGrad)" name="Raised" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="resolved" fill="url(#issueResolvedGrad)" name="Resolved" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Response Time Stats */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className={`rounded-3xl p-8 transition-all duration-300 shadow-xl hover:shadow-2xl ${
+                  darkMode ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-white/70 border border-white/50'
+                } backdrop-blur-md`}>
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">Video Response Times</h3>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Performance metrics</p>
+                    </div>
+                    <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-600 rounded-2xl">
+                      <span className="text-white text-xl">⏱️</span>
+                    </div>
+                  </div>
+                  <div className="space-y-6">
+                    {(() => {
+                      const stats = getResponseTimeStats(data.issues?.historicalVideos?.responseTimeStats);
+                      return (
+                        <>
+                          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-2xl">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                              <span className="font-medium">Fastest Response</span>
+                            </div>
+                            <span className="text-2xl font-bold text-green-600">{stats.fastest}</span>
+                          </div>
+                          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-2xl">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse animation-delay-200"></div>
+                              <span className="font-medium">Average Response</span>
+                            </div>
+                            <span className="text-2xl font-bold text-yellow-600">{stats.median}</span>
+                          </div>
+                          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-red-500/10 to-pink-500/10 rounded-2xl">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse animation-delay-400"></div>
+                              <span className="font-medium">Slowest Response</span>
+                            </div>
+                            <span className="text-2xl font-bold text-red-600">{stats.slowest}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                <div className={`rounded-3xl p-8 transition-all duration-300 shadow-xl hover:shadow-2xl ${
+                  darkMode ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-white/70 border border-white/50'
+                } backdrop-blur-md`}>
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">Issue Response Times</h3>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Support efficiency</p>
+                    </div>
+                    <div className="p-3 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-2xl">
+                      <span className="text-white text-xl">🚀</span>
+                    </div>
+                  </div>
+                  <div className="space-y-6">
+                    {(() => {
+                      const stats = getResponseTimeStats(data.issues?.allIssues?.responseTimeStats);
+                      return (
+                        <>
+                          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-2xl">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                              <span className="font-medium">Fastest Resolution</span>
+                            </div>
+                            <span className="text-2xl font-bold text-green-600">{stats.fastest}</span>
+                          </div>
+                          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-2xl">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse animation-delay-200"></div>
+                              <span className="font-medium">Average Resolution</span>
+                            </div>
+                            <span className="text-2xl font-bold text-yellow-600">{stats.median}</span>
+                          </div>
+                          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-red-500/10 to-pink-500/10 rounded-2xl">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse animation-delay-400"></div>
+                              <span className="font-medium">Slowest Resolution</span>
+                            </div>
+                            <span className="text-2xl font-bold text-red-600">{stats.slowest}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'analytics' && (
+            <div className="space-y-8">
+              <div className="text-center mb-12">
+                <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-4">
+                  Advanced Analytics
+                </h2>
+                <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Deep insights into your data patterns and trends
+                </p>
+              </div>
+
+              {/* Coming Soon Placeholder */}
+              <div className={`rounded-3xl p-12 text-center transition-all duration-300 shadow-xl ${
+                darkMode ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-white/70 border border-white/50'
+              } backdrop-blur-md`}>
+                <div className="text-8xl mb-6">📈</div>
+                <h3 className="text-2xl font-bold mb-4">Advanced Analytics Coming Soon</h3>
+                <p className={`text-lg mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  We're working on advanced analytics features including predictive insights, trend analysis, and custom reports.
+                </p>
+                <div className="flex justify-center">
+                  <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium py-3 px-6 rounded-2xl">
+                    Stay tuned for updates!
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'clients' && (
+            <div className="space-y-8">
+              <div className="text-center mb-12">
+                <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-4">
+                  Client Analytics
+                </h2>
+                <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Detailed breakdown by client performance and activity
+                </p>
+              </div>
+
+              {/* Client Tables */}
+              <div className="grid grid-cols-1 gap-8">
+                
+                {/* Misalignment by Client */}
+                <div className={`rounded-3xl p-8 transition-all duration-300 shadow-xl ${
+                  darkMode ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-white/70 border border-white/50'
+                } backdrop-blur-md`}>
+                  <h3 className="text-2xl font-bold mb-6 flex items-center">
+                    <span className="mr-3">⚠️</span>
+                    Client Misalignment Summary
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className={`border-b-2 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                          <th className="text-left py-4 px-6 font-semibold">Client</th>
+                          <th className="text-left py-4 px-6 font-semibold">Month</th>
+                          <th className="text-left py-4 px-6 font-semibold">Issues</th>
+                          <th className="text-left py-4 px-6 font-semibold">Vehicles</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(data.misalignment?.clientStats || {}).map(([client, months]) =>
+                          Object.entries(months).map(([month, stats]) => (
+                            <tr key={`${client}-${month}`} className={`border-b transition-colors hover:bg-gray-50 ${darkMode ? 'hover:bg-gray-700/50' : ''}`}>
+                              <td className="py-4 px-6 font-medium">{client}</td>
+                              <td className="py-4 px-6">{month}</td>
+                              <td className="py-4 px-6">
+                                <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
+                                  {stats.count}
+                                </span>
+                              </td>
+                              <td className="py-4 px-6">
+                                <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
+                                  {stats.vehicles?.size || 0}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Alerts by Client */}
+                <div className={`rounded-3xl p-8 transition-all duration-300 shadow-xl ${
+                  darkMode ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-white/70 border border-white/50'
+                } backdrop-blur-md`}>
+                  <h3 className="text-2xl font-bold mb-6 flex items-center">
+                    <span className="mr-3">🚨</span>
+                    Client Alert Summary
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className={`border-b-2 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                          <th className="text-left py-4 px-6 font-semibold">Client</th>
+                          <th className="text-left py-4 px-6 font-semibold">Month</th>
+                          <th className="text-left py-4 px-6 font-semibold">Alerts</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(data.alerts?.clientStats || {}).map(([client, months]) =>
+                          Object.entries(months).map(([month, count]) => (
+                            <tr key={`${client}-${month}`} className={`border-b transition-colors hover:bg-gray-50 ${darkMode ? 'hover:bg-gray-700/50' : ''}`}>
+                              <td className="py-4 px-6 font-medium">{client}</td>
+                              <td className="py-4 px-6">{month}</td>
+                              <td className="py-4 px-6">
+                                <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+                                  {count}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Issues by Client */}
+                <div className={`rounded-3xl p-8 transition-all duration-300 shadow-xl ${
+                  darkMode ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-white/70 border border-white/50'
+                } backdrop-blur-md`}>
+                  <h3 className="text-2xl font-bold mb-6 flex items-center">
+                    <span className="mr-3">🛠️</span>
+                    Client Issue Summary
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className={`border-b-2 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                          <th className="text-left py-4 px-6 font-semibold">Client</th>
+                          <th className="text-left py-4 px-6 font-semibold">Month</th>
+                          <th className="text-left py-4 px-6 font-semibold">Raised</th>
+                          <th className="text-left py-4 px-6 font-semibold">Resolved</th>
+                          <th className="text-left py-4 px-6 font-semibold">Videos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(data.issues?.allIssues?.clientStats || {}).map(([client, months]) =>
+                          Object.entries(months).map(([month, stats]) => (
+                            <tr key={`${client}-${month}`} className={`border-b transition-colors hover:bg-gray-50 ${darkMode ? 'hover:bg-gray-700/50' : ''}`}>
+                              <td className="py-4 px-6 font-medium">{client}</td>
+                              <td className="py-4 px-6">{month}</td>
+                              <td className="py-4 px-6">
+                                <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
+                                  {stats.raised}
+                                </span>
+                              </td>
+                              <td className="py-4 px-6">
+                                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                                  {stats.resolved}
+                                </span>
+                              </td>
+                              <td className="py-4 px-6">
+                                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                                  {data.issues?.historicalVideos?.clientStats?.[client]?.[month]?.raised || 0}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
+
+      <style jsx>{`
+        .animation-delay-150 {
+          animation-delay: 150ms;
+        }
+        .animation-delay-200 {
+          animation-delay: 200ms;
+        }
+        .animation-delay-400 {
+          animation-delay: 400ms;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.6s ease-out;
+        }
+        @media (max-width: 768px) {
+          .grid-cols-1 {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </>
   );
 }
